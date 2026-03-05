@@ -1,0 +1,8 @@
+{
+  "name": "solana-open-rails",
+  "private": true,
+  "scripts": {
+    "build:program": "cd programs/open_rails && anchor build",
+    "test:program": "cd programs/open_rails && anchor test"
+  }
+}
