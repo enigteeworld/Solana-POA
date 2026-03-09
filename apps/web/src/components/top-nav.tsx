@@ -18,7 +18,7 @@ export function TopNav() {
 
               <span className="ml-1 hidden items-center gap-2 pill sm:inline-flex">
                 <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.8)]" />
-                Live
+                
               </span>
             </div>
 
