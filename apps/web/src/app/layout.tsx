@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AppProviders>
             <div className="min-h-screen">
               <TopNav />
-              <main className="container-page pt-6 pb-24">
+              <main className="container-page pt-6 pb-32">
                 {children}
               </main>
               <BottomNav />

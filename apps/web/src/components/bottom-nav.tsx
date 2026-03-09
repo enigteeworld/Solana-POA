@@ -19,10 +19,10 @@ function Tab({
     <Link
       href={href}
       className={[
-        "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 transition",
+        "flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 transition",
         active
-          ? "bg-white/60 text-slate-950 shadow-[0_0_0_1px_rgba(255,255,255,0.12)] dark:bg-white/12 dark:text-white"
-          : "text-slate-800/80 hover:opacity-100 dark:text-white/80",
+          ? "bg-white/70 text-slate-950 shadow-[0_0_0_1px_rgba(255,255,255,0.16),0_10px_24px_rgba(0,0,0,0.16)] dark:bg-white/14 dark:text-white"
+          : "text-slate-800/80 hover:bg-white/30 hover:text-slate-950 dark:text-white/80 dark:hover:bg-white/8 dark:hover:text-white",
       ].join(" ")}
     >
       <div className="text-xl leading-none">{icon}</div>
@@ -34,17 +34,19 @@ function Tab({
 export function BottomNav() {
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50"
+      style={{ paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}
     >
-      <div className="container-page pb-2">
-        <div className="nav-blur rounded-t-3xl border border-white/20 border-b-0 dark:border-white/10">
-          <div className="grid min-h-[72px] grid-cols-5 items-center gap-1 px-2 py-2">
-            <Tab href="/" icon="🏠" label="Home" />
-            <Tab href="/organizer" icon="🎛️" label="Host" />
-            <Tab href="/participant" icon="🎟️" label="Claim" />
-            <Tab href="/validator" icon="✅" label="Verify" />
-            <Tab href="/explore" icon="🔎" label="Explore" />
+      <div className="container-page pointer-events-none">
+        <div className="pointer-events-auto mx-auto max-w-[980px] px-2">
+          <div className="rounded-[28px] border border-white/15 bg-white/70 shadow-[0_18px_60px_rgba(0,0,0,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/72 dark:shadow-[0_18px_60px_rgba(0,0,0,0.48)]">
+            <div className="grid grid-cols-5 gap-1 p-2">
+              <Tab href="/" icon="🏠" label="Home" />
+              <Tab href="/organizer" icon="🎛️" label="Host" />
+              <Tab href="/participant" icon="🎟️" label="Claim" />
+              <Tab href="/validator" icon="✅" label="Verify" />
+              <Tab href="/explore" icon="🔎" label="Explore" />
+            </div>
           </div>
         </div>
       </div>
