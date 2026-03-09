@@ -1,0 +1,987 @@
+{
+  "address": "BwxnJR3UjoLYM3oPEHA5742zWLu2HSrGFDAKqDEQumvv",
+  "metadata": {
+    "name": "open_rails",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "approve_claim",
+      "docs": [
+        "Organizer approves claim -> canonical Proof record"
+      ],
+      "discriminator": [
+        74,
+        228,
+        211,
+        63,
+        140,
+        255,
+        69,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "organizer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103,
+                  97,
+                  110,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true
+        },
+        {
+          "name": "proof",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  111,
+                  102
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.organizer",
+                "account": "Claim"
+              },
+              {
+                "kind": "account",
+                "path": "claim.claimant",
+                "account": "Claim"
+              },
+              {
+                "kind": "account",
+                "path": "claim"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "attach_badge",
+      "docs": [
+        "Optional: after minting NFT/cNFT elsewhere, attach badge refs to a proof"
+      ],
+      "discriminator": [
+        198,
+        20,
+        204,
+        68,
+        73,
+        1,
+        103,
+        173
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "proof",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "badge_mint",
+          "type": "pubkey"
+        },
+        {
+          "name": "badge_uri",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "create_action_type",
+      "docs": [
+        "PRA action type definition (PLANTED_TREE, CLEANUP_DONE, etc.)"
+      ],
+      "discriminator": [
+        61,
+        10,
+        148,
+        229,
+        129,
+        102,
+        38,
+        185
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "organizer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103,
+                  97,
+                  110,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "action_type",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  116,
+                  121,
+                  112,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organizer"
+              },
+              {
+                "kind": "account",
+                "path": "code_seed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "code_seed",
+          "docs": [
+            "to avoid collisions between action types. No data is read from this account."
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "code",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        },
+        {
+          "name": "requires_evidence",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "create_event",
+      "docs": [
+        "POA = special case of action: \"ATTENDED_EVENT\"",
+        "Represented as Event with claim_code (encoded in QR/claim link)"
+      ],
+      "discriminator": [
+        49,
+        219,
+        29,
+        203,
+        22,
+        98,
+        100,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "organizer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103,
+                  97,
+                  110,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "event",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  118,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organizer"
+              },
+              {
+                "kind": "account",
+                "path": "event_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "event_id",
+          "docs": [
+            "to make each event unique. No data is read from this account."
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        },
+        {
+          "name": "start_ts",
+          "type": "i64"
+        },
+        {
+          "name": "end_ts",
+          "type": "i64"
+        },
+        {
+          "name": "claim_code",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "create_organizer",
+      "docs": [
+        "Organizer profile (authority = organizer wallet)"
+      ],
+      "discriminator": [
+        200,
+        214,
+        58,
+        143,
+        4,
+        114,
+        99,
+        4
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "organizer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103,
+                  97,
+                  110,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "submit_claim",
+      "docs": [
+        "Unified claim submission:",
+        "- POA: claim_kind=AttendedEvent, provide `event` + `event_claim_code`",
+        "- PRA: claim_kind=RealWorldAction, provide `action_type` + evidence/location/context"
+      ],
+      "discriminator": [
+        163,
+        108,
+        111,
+        46,
+        220,
+        82,
+        77,
+        212
+      ],
+      "accounts": [
+        {
+          "name": "claimant",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "organizer",
+          "docs": [
+            "Organizer PDA derived from organizer_authority"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103,
+                  97,
+                  110,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organizer_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "organizer_authority"
+        },
+        {
+          "name": "event",
+          "docs": [
+            "Validated manually inside submit_claim when claim_kind = AttendedEvent."
+          ],
+          "optional": true
+        },
+        {
+          "name": "action_type",
+          "docs": [
+            "Validated manually inside submit_claim when claim_kind = RealWorldAction."
+          ],
+          "optional": true
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organizer"
+              },
+              {
+                "kind": "account",
+                "path": "claimant"
+              },
+              {
+                "kind": "account",
+                "path": "claim_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim_id",
+          "docs": [
+            "to make each claim unique. No data is read from this account."
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "claim_kind",
+          "type": {
+            "defined": {
+              "name": "ClaimKind"
+            }
+          }
+        },
+        {
+          "name": "event_claim_code",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "evidence_hash",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "location_cell",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "context",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "occurred_ts",
+          "type": "i64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ActionType",
+      "discriminator": [
+        246,
+        152,
+        71,
+        48,
+        80,
+        187,
+        187,
+        170
+      ]
+    },
+    {
+      "name": "Claim",
+      "discriminator": [
+        155,
+        70,
+        22,
+        176,
+        123,
+        215,
+        246,
+        102
+      ]
+    },
+    {
+      "name": "Event",
+      "discriminator": [
+        125,
+        192,
+        125,
+        158,
+        9,
+        115,
+        152,
+        233
+      ]
+    },
+    {
+      "name": "Organizer",
+      "discriminator": [
+        73,
+        247,
+        138,
+        243,
+        15,
+        237,
+        84,
+        136
+      ]
+    },
+    {
+      "name": "Proof",
+      "discriminator": [
+        163,
+        35,
+        13,
+        71,
+        15,
+        128,
+        63,
+        82
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NameTooLong",
+      "msg": "Name too long"
+    },
+    {
+      "code": 6001,
+      "name": "UriTooLong",
+      "msg": "URI too long"
+    },
+    {
+      "code": 6002,
+      "name": "CodeTooLong",
+      "msg": "Code too long"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidTimeWindow",
+      "msg": "Invalid time window"
+    },
+    {
+      "code": 6004,
+      "name": "OccurredTimeInFuture",
+      "msg": "Occurred time is too far in the future"
+    },
+    {
+      "code": 6005,
+      "name": "MissingEvent",
+      "msg": "Missing event account for attendance claim"
+    },
+    {
+      "code": 6006,
+      "name": "MissingActionType",
+      "msg": "Missing action type account for action claim"
+    },
+    {
+      "code": 6007,
+      "name": "MissingClaimCode",
+      "msg": "Missing claim code"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidClaimCode",
+      "msg": "Invalid claim code"
+    },
+    {
+      "code": 6009,
+      "name": "OutsideEventWindow",
+      "msg": "Outside event window"
+    },
+    {
+      "code": 6010,
+      "name": "EvidenceRequired",
+      "msg": "Evidence required for this action type"
+    },
+    {
+      "code": 6011,
+      "name": "ContextTooLong",
+      "msg": "Context too long"
+    },
+    {
+      "code": 6012,
+      "name": "EvidenceTooLong",
+      "msg": "Evidence hash too long"
+    },
+    {
+      "code": 6013,
+      "name": "LocationTooLong",
+      "msg": "Location cell too long"
+    },
+    {
+      "code": 6014,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6015,
+      "name": "ClaimNotPending",
+      "msg": "Claim is not pending"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidAccountOwner",
+      "msg": "Branch account is owned by the wrong program"
+    }
+  ],
+  "types": [
+    {
+      "name": "ActionType",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "organizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "uri",
+            "type": "string"
+          },
+          {
+            "name": "requires_evidence",
+            "type": "bool"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Claim",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "claimant",
+            "type": "pubkey"
+          },
+          {
+            "name": "organizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "kind",
+            "type": {
+              "defined": {
+                "name": "ClaimKind"
+              }
+            }
+          },
+          {
+            "name": "event",
+            "type": "pubkey"
+          },
+          {
+            "name": "action_type",
+            "type": "pubkey"
+          },
+          {
+            "name": "evidence_hash",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "location_cell",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "context",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "occurred_ts",
+            "type": "i64"
+          },
+          {
+            "name": "submitted_at",
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "ClaimStatus"
+              }
+            }
+          },
+          {
+            "name": "validator",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimKind",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "AttendedEvent"
+          },
+          {
+            "name": "RealWorldAction"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Pending"
+          },
+          {
+            "name": "Approved"
+          },
+          {
+            "name": "Rejected"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Event",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "organizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "uri",
+            "type": "string"
+          },
+          {
+            "name": "start_ts",
+            "type": "i64"
+          },
+          {
+            "name": "end_ts",
+            "type": "i64"
+          },
+          {
+            "name": "claim_code",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Organizer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Proof",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "claimant",
+            "type": "pubkey"
+          },
+          {
+            "name": "organizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "validator",
+            "type": "pubkey"
+          },
+          {
+            "name": "kind",
+            "type": {
+              "defined": {
+                "name": "ClaimKind"
+              }
+            }
+          },
+          {
+            "name": "occurred_ts",
+            "type": "i64"
+          },
+          {
+            "name": "issued_at",
+            "type": "i64"
+          },
+          {
+            "name": "event",
+            "type": "pubkey"
+          },
+          {
+            "name": "action_type",
+            "type": "pubkey"
+          },
+          {
+            "name": "evidence_hash",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "location_cell",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "context",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "badge_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "badge_uri",
+            "type": {
+              "option": "string"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
