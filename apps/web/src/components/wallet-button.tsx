@@ -8,16 +8,21 @@ export function WalletButton() {
 
   useEffect(() => setMounted(true), []);
 
-  // Prevent SSR/client mismatch by not rendering the wallet UI until mounted.
   if (!mounted) {
     return (
-      <button className="rounded-full px-4 py-2 bg-white/70 dark:bg-white/10 backdrop-blur-md border border-white/40 dark:border-white/20 text-slate-900 dark:text-white shadow hover:scale-105 transition">
-        Select Wallet
+      <button
+        type="button"
+        className="inline-flex h-11 min-w-[110px] max-w-[140px] items-center justify-center overflow-hidden whitespace-nowrap rounded-2xl border border-white/40 bg-white/70 px-3 text-sm font-semibold text-slate-900 shadow backdrop-blur-md transition dark:border-white/20 dark:bg-white/10 dark:text-white"
+      >
+        <span className="sm:hidden">Wallet</span>
+        <span className="hidden sm:inline">Select Wallet</span>
       </button>
     );
   }
 
   return (
-    <WalletMultiButton className="!rounded-full !px-4 !py-2 !bg-gradient-to-r !from-indigo-500 !via-purple-500 !to-pink-500 hover:!scale-105 transition !text-white !shadow-lg" />
+    <div className="wallet-btn-shell shrink-0">
+      <WalletMultiButton className="!m-0 !inline-flex !h-11 !min-w-[110px] !max-w-[140px] !items-center !justify-center !overflow-hidden !whitespace-nowrap !rounded-2xl !border-0 !bg-gradient-to-r !from-indigo-500 !via-purple-500 !to-pink-500 !px-3 !text-sm !font-semibold !text-white !shadow-lg transition hover:!scale-[1.02] sm:!max-w-[180px] sm:!px-4" />
+    </div>
   );
 }
