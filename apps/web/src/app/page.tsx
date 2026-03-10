@@ -49,7 +49,7 @@ export default function HomePage() {
           <div className="badge">Unified</div>
           <h2 className="h2 mt-3">Same rails, same protocol</h2>
           <p className="p mt-2">
-            Attendance is just an action type. You get a single proof format that’s easy to index and query.
+            Attendance is just an action type. You get a single proof format that’s easy to index and query..
           </p>
         </div>
       </section>
