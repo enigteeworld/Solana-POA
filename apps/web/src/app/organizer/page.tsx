@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
+  Connection,
   Keypair,
   PublicKey,
   SendTransactionError,
@@ -63,6 +64,36 @@ function makeActionCode(name: string) {
     .replace(/[^A-Z0-9]+/g, "_")
     .replace(/(^_|_$)/g, "");
   return `ATTENDED_${slug || "EVENT"}`.slice(0, 32);
+}
+
+async function waitForSignature(
+  connection: Connection,
+  signature: string,
+  timeoutMs = 60000
+) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const res = await connection.getSignatureStatuses([signature]);
+    const status = res.value[0];
+
+    if (status?.err) {
+      throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
+    }
+
+    if (
+      status?.confirmationStatus === "confirmed" ||
+      status?.confirmationStatus === "finalized"
+    ) {
+      return status;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  throw new Error(
+    `Confirmation delayed. Check signature in Explorer: ${signature}`
+  );
 }
 
 type StoredEvent = {
@@ -132,8 +163,7 @@ export default function OrganizerPage() {
     if (!claimCode.trim() && eventName.trim()) {
       setClaimCode(makeClaimCodeFallback(eventName));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventName]);
+  }, [eventName, claimCode]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -310,11 +340,13 @@ export default function OrganizerPage() {
         })
         .rpc();
 
+      await waitForSignature(connection, sig, 60000);
+
       window.localStorage.setItem(LS_ORG_PDA, orgPda.toBase58());
       setSavedOrgPda(orgPda.toBase58());
 
       setCelebrate(true);
-      setTimeout(() => setCelebrate(false), 50);
+      setTimeout(() => setCelebrate(false), 1200);
 
       push({
         type: "success",
@@ -323,6 +355,8 @@ export default function OrganizerPage() {
         actionLabel: "View tx",
         onAction: () => window.open(explorerTxUrl(sig), "_blank"),
       });
+    
+
     } catch (e: unknown) {
       if (e instanceof SendTransactionError) {
         let logs: string[] | undefined;
@@ -331,15 +365,36 @@ export default function OrganizerPage() {
         } catch {
           // ignore
         }
-        push({
-          type: "error",
-          title: "Transaction failed",
-          description: e.message || "SendTransactionError",
-          actionLabel: logs?.length ? "Show logs" : undefined,
-          onAction: logs?.length
-            ? () => console.log("Transaction logs:", logs)
-            : undefined,
-        });
+
+        const msg = e.message || "SendTransactionError";
+
+        if (
+          msg.includes("Transaction was not confirmed in 30.00 seconds") ||
+          msg.includes("Confirmation delayed") ||
+          msg.includes("Check signature in Explorer")
+        ) {
+          push({
+            type: "info",
+            title: "Confirmation delayed",
+            description:
+              "Your transaction may still succeed on devnet. Wait a little, then check Recent event posts or Explorer before retrying.",
+            actionLabel: "Show logs",
+            onAction: logs?.length
+              ? () => console.log("Transaction logs:", logs)
+              : undefined,
+          });
+        } else {
+          push({
+            type: "error",
+            title: "Create event failed",
+            description: msg,
+            actionLabel: logs?.length ? "Show logs" : undefined,
+            onAction: logs?.length
+              ? () => console.log("Transaction logs:", logs)
+              : undefined,
+          });
+        }
+
         console.error(e, logs);
         return;
       }
@@ -348,9 +403,29 @@ export default function OrganizerPage() {
         e && typeof e === "object" && "message" in e
           ? String((e as { message: string }).message)
           : "Transaction failed";
-      push({ type: "error", title: "Create organizer failed", description: msg });
+
+      if (
+        msg.includes("Transaction was not confirmed in 30.00 seconds") ||
+        msg.includes("Confirmation delayed") ||
+        msg.includes("Check signature in Explorer")
+      ) {
+        push({
+          type: "info",
+          title: "Confirmation delayed",
+          description:
+            "Your transaction may still succeed on devnet. Wait a little, then check Recent event posts or Explorer before retrying.",
+        });
+      } else {
+        push({
+          type: "error",
+          title: "Create event failed",
+          description: msg,
+        });
+      }
+
       console.error(e);
     } finally {
+
       setBusyOrg(false);
     }
   }
@@ -364,6 +439,7 @@ export default function OrganizerPage() {
       });
       return;
     }
+
     if (!savedOrgPda) {
       push({
         type: "error",
@@ -374,6 +450,7 @@ export default function OrganizerPage() {
     }
 
     setBusyEvent(true);
+
     try {
       const program = getProgram(connection, wallet);
       const organizer = new PublicKey(savedOrgPda);
@@ -404,6 +481,8 @@ export default function OrganizerPage() {
         })
         .rpc();
 
+      await waitForSignature(connection, actionTypeSig, 60000);
+
       const eventSig = await program.methods
         .createEvent(
           eventName.trim(),
@@ -420,6 +499,8 @@ export default function OrganizerPage() {
           systemProgram: SystemProgram.programId,
         })
         .rpc();
+
+      await waitForSignature(connection, eventSig, 60000);
 
       const stored: StoredEvent = {
         name: eventName.trim(),
@@ -446,7 +527,7 @@ export default function OrganizerPage() {
       setQrOpen(true);
 
       setCelebrate(true);
-      setTimeout(() => setCelebrate(false), 50);
+      setTimeout(() => setCelebrate(false), 1200);
 
       push({
         type: "success",
@@ -475,6 +556,7 @@ export default function OrganizerPage() {
         } catch {
           // ignore
         }
+
         push({
           type: "error",
           title: "Create event failed",
@@ -492,7 +574,12 @@ export default function OrganizerPage() {
         e && typeof e === "object" && "message" in e
           ? String((e as { message: string }).message)
           : "Transaction failed";
-      push({ type: "error", title: "Create event failed", description: msg });
+
+      push({
+        type: "error",
+        title: "Create event failed",
+        description: msg,
+      });
       console.error(e);
     } finally {
       setBusyEvent(false);

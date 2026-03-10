@@ -10,8 +10,11 @@ export const OPEN_RAILS_PROGRAM_ID = new PublicKey(
 );
 
 function toAnchorWallet(wallet: WalletContextState): AnchorWallet {
-  // Anchor only needs these 3 properties.
-  if (!wallet.publicKey || !wallet.signTransaction || !wallet.signAllTransactions) {
+  if (
+    !wallet.publicKey ||
+    !wallet.signTransaction ||
+    !wallet.signAllTransactions
+  ) {
     throw new Error("Wallet not connected");
   }
 
@@ -24,7 +27,11 @@ function toAnchorWallet(wallet: WalletContextState): AnchorWallet {
 
 export function getProvider(connection: Connection, wallet: WalletContextState) {
   const anchorWallet = toAnchorWallet(wallet);
-  return new AnchorProvider(connection, anchorWallet, { commitment: "confirmed" });
+
+  return new AnchorProvider(connection, anchorWallet, {
+    commitment: "confirmed",
+    preflightCommitment: "confirmed",
+  });
 }
 
 export function getProgram(
@@ -32,8 +39,6 @@ export function getProgram(
   wallet: WalletContextState
 ): Program<Idl> {
   const provider = getProvider(connection, wallet);
-
   const idl = idlJson as Idl;
-
   return new Program(idl, provider);
 }
