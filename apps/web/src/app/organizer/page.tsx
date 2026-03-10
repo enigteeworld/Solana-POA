@@ -109,6 +109,15 @@ type StoredEvent = {
   cover?: string;
 };
 
+function statusChip(icon: string, text: string) {
+  return (
+    <div className="pill">
+      <span>{icon}</span>
+      <span>{text}</span>
+    </div>
+  );
+}
+
 export default function OrganizerPage() {
   const { connection } = useConnection();
   const wallet = useWallet();
@@ -355,8 +364,6 @@ export default function OrganizerPage() {
         actionLabel: "View tx",
         onAction: () => window.open(explorerTxUrl(sig), "_blank"),
       });
-    
-
     } catch (e: unknown) {
       if (e instanceof SendTransactionError) {
         let logs: string[] | undefined;
@@ -377,8 +384,8 @@ export default function OrganizerPage() {
             type: "info",
             title: "Confirmation delayed",
             description:
-              "Your transaction may still succeed on devnet. Wait a little, then check Recent event posts or Explorer before retrying.",
-            actionLabel: "Show logs",
+              "Your organizer may still be created on devnet. Wait a little, then check again before retrying.",
+            actionLabel: logs?.length ? "Show logs" : undefined,
             onAction: logs?.length
               ? () => console.log("Transaction logs:", logs)
               : undefined,
@@ -386,7 +393,7 @@ export default function OrganizerPage() {
         } else {
           push({
             type: "error",
-            title: "Create event failed",
+            title: "Create organizer failed",
             description: msg,
             actionLabel: logs?.length ? "Show logs" : undefined,
             onAction: logs?.length
@@ -404,28 +411,18 @@ export default function OrganizerPage() {
           ? String((e as { message: string }).message)
           : "Transaction failed";
 
-      if (
-        msg.includes("Transaction was not confirmed in 30.00 seconds") ||
-        msg.includes("Confirmation delayed") ||
-        msg.includes("Check signature in Explorer")
-      ) {
-        push({
-          type: "info",
-          title: "Confirmation delayed",
-          description:
-            "Your transaction may still succeed on devnet. Wait a little, then check Recent event posts or Explorer before retrying.",
-        });
-      } else {
-        push({
-          type: "error",
-          title: "Create event failed",
-          description: msg,
-        });
-      }
+      push({
+        type: msg.includes("Confirmation delayed") ? "info" : "error",
+        title: msg.includes("Confirmation delayed")
+          ? "Confirmation delayed"
+          : "Create organizer failed",
+        description: msg.includes("Confirmation delayed")
+          ? "Your organizer may still be created on devnet. Wait a little, then check again before retrying."
+          : msg,
+      });
 
       console.error(e);
     } finally {
-
       setBusyOrg(false);
     }
   }
@@ -532,9 +529,7 @@ export default function OrganizerPage() {
       push({
         type: "success",
         title: "Event posted ✨",
-        description: `Event: ${shortPk(event.toBase58())} • Action: ${shortPk(
-          actionType.toBase58()
-        )}`,
+        description: `Event: ${shortPk(event.toBase58())}`,
         actionLabel: "View tx",
         onAction: () => window.open(explorerTxUrl(eventSig), "_blank"),
       });
@@ -557,15 +552,35 @@ export default function OrganizerPage() {
           // ignore
         }
 
-        push({
-          type: "error",
-          title: "Create event failed",
-          description: e.message || "SendTransactionError",
-          actionLabel: logs?.length ? "Show logs" : undefined,
-          onAction: logs?.length
-            ? () => console.log("Transaction logs:", logs)
-            : undefined,
-        });
+        const msg = e.message || "SendTransactionError";
+
+        if (
+          msg.includes("Transaction was not confirmed in 30.00 seconds") ||
+          msg.includes("Confirmation delayed") ||
+          msg.includes("Check signature in Explorer")
+        ) {
+          push({
+            type: "info",
+            title: "Confirmation delayed",
+            description:
+              "Your event may still succeed on devnet. Wait a little, then check Recent posts or Explorer before retrying.",
+            actionLabel: logs?.length ? "Show logs" : undefined,
+            onAction: logs?.length
+              ? () => console.log("Transaction logs:", logs)
+              : undefined,
+          });
+        } else {
+          push({
+            type: "error",
+            title: "Create event failed",
+            description: msg,
+            actionLabel: logs?.length ? "Show logs" : undefined,
+            onAction: logs?.length
+              ? () => console.log("Transaction logs:", logs)
+              : undefined,
+          });
+        }
+
         console.error(e, logs);
         return;
       }
@@ -576,10 +591,15 @@ export default function OrganizerPage() {
           : "Transaction failed";
 
       push({
-        type: "error",
-        title: "Create event failed",
-        description: msg,
+        type: msg.includes("Confirmation delayed") ? "info" : "error",
+        title: msg.includes("Confirmation delayed")
+          ? "Confirmation delayed"
+          : "Create event failed",
+        description: msg.includes("Confirmation delayed")
+          ? "Your event may still succeed on devnet. Wait a little, then check Recent posts or Explorer before retrying."
+          : msg,
       });
+
       console.error(e);
     } finally {
       setBusyEvent(false);
@@ -589,7 +609,7 @@ export default function OrganizerPage() {
   const previewCover = eventCover.trim();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <Celebration fire={celebrate} />
       <QrModal
         open={qrOpen}
@@ -598,84 +618,178 @@ export default function OrganizerPage() {
         onClose={() => setQrOpen(false)}
       />
 
-      <div className="card-social p-6 sm:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="pill">
-              <span>Organizer</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.7)]" />
-              <span className="opacity-80">Event posts</span>
-            </div>
-
-            <h1 className="h1 mt-4">Create an event post ✍️</h1>
-            <p className="p mt-2">
-              Create an event, then share the claim link/QR like a story.
-              Participants tap → connect → check in.
-            </p>
-          </div>
-
-          {wallet.publicKey ? (
-            <div className="pill">
-              <span className="opacity-80">Connected</span>
-              <span className="font-mono">
-                {shortPk(wallet.publicKey.toBase58())}
-              </span>
-            </div>
-          ) : (
-            <div className="pill opacity-80">Connect wallet to post</div>
-          )}
-        </div>
-
-        {savedOrgPda ? (
-          <div className="mt-5 rounded-3xl border border-white/10 bg-white/60 dark:bg-white/5 p-5">
-            <div className="flex items-start justify-between gap-3">
+      <div className="card-social overflow-hidden">
+        <div
+          className="p-6 sm:p-8"
+          style={{
+            background: previewCover
+              ? `linear-gradient(180deg, rgba(0,0,0,0.42), rgba(0,0,0,0.58)), url(${previewCover}) center/cover`
+              : "linear-gradient(135deg, rgba(47,107,255,0.28), rgba(124,92,255,0.28))",
+          }}
+        >
+          <div className={previewCover ? "rounded-[28px] bg-black/25 p-6 sm:p-7" : ""}>
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-sm font-semibold">Organizer PDA</div>
-                <div className="mt-1 font-mono text-xs opacity-80 break-all">
-                  {savedOrgPda}
+                <div className="pill">
+                  <span>Organizer</span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.7)]" />
+                  <span className="opacity-80">Event post</span>
+                </div>
+
+                <h1 className="h1 mt-4 text-white sm:text-[color:var(--text-primary)]">
+                  {eventEmoji || "🎓"}{" "}
+                  {eventName.trim() ? eventName.trim() : "Create an event post"}
+                </h1>
+
+                <p className="p mt-3 max-w-2xl text-white/90 sm:text-[color:var(--text-secondary)]">
+                  Create a check-in post, share the link or QR, and let attendees tap in like a story.
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {statusChip("📌", `${events.length} posts`)}
+                  {statusChip("🔗", shareUrl ? "link ready" : "ready to share")}
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <button
-                  className="btn-secondary"
-                  onClick={async () => {
-                    await copyToClipboard(savedOrgPda);
-                    push({
-                      type: "success",
-                      title: "Copied",
-                      description: "Organizer PDA copied.",
-                    });
-                  }}
-                  type="button"
-                >
-                  Copy
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() =>
-                    window.open(explorerAddressUrl(savedOrgPda), "_blank")
-                  }
-                  type="button"
-                >
-                  Explorer
-                </button>
-              </div>
+              {wallet.publicKey ? (
+                <div className="hidden sm:flex pill">
+                  <span className="opacity-80">Connected</span>
+                  <span className="font-mono">
+                    {shortPk(wallet.publicKey.toBase58())}
+                  </span>
+                </div>
+              ) : (
+                <div className="hidden sm:flex pill opacity-80">
+                  Connect wallet to post
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                className="btn-primary shine w-full"
+                onClick={onCreateEvent}
+                disabled={!canCreateEvent}
+                type="button"
+              >
+                {busyEvent ? "Posting…" : "✨ Post event"}
+              </button>
+
+              <button
+                className="btn-secondary w-full"
+                onClick={() => {
+                  if (events[0]) openSharePanelFor(events[0]);
+                }}
+                disabled={!events[0]}
+                type="button"
+              >
+                Open latest share
+              </button>
+            </div>
+
+            <div className="mt-3 text-xs text-white/80 sm:text-[color:var(--text-secondary)]">
+              Create once, then share everywhere: WhatsApp, X, Telegram, QR in-room.
             </div>
           </div>
-        ) : null}
+        </div>
       </div>
 
+      {!savedOrgPda ? (
+        <div className="card-social p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">Create your organizer profile</div>
+              <div className="mt-1 text-sm opacity-80">
+                This is your creator identity for posting events on-chain.
+              </div>
+            </div>
+            <div className="pill">👤</div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <div>
+              <label className="label">Organizer name</label>
+              <input
+                className="input mt-2"
+                placeholder="e.g. Solana Tokyo Builders"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+              />
+            </div>
+
+            <button
+              className="btn-primary w-full shine"
+              onClick={onCreateOrganizer}
+              disabled={!canCreateOrganizer}
+              type="button"
+            >
+              {busyOrg ? "Creating…" : "Create organizer"}
+            </button>
+
+            {!wallet.publicKey ? (
+              <div className="text-xs opacity-70">
+                Connect your wallet first.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="card-social p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">Organizer ready</div>
+              <div className="mt-1 text-sm opacity-80">
+                Your organizer profile is active and can post events.
+              </div>
+            </div>
+            <div className="pill">✅</div>
+          </div>
+
+          <div className="mt-4 rounded-3xl border border-white/10 bg-white/60 p-4 dark:bg-white/5">
+            <div className="text-xs opacity-70">Organizer PDA</div>
+            <div className="mt-2 font-mono text-xs break-all opacity-85">
+              {savedOrgPda}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                className="btn-secondary"
+                onClick={async () => {
+                  await copyToClipboard(savedOrgPda);
+                  push({
+                    type: "success",
+                    title: "Copied",
+                    description: "Organizer PDA copied.",
+                  });
+                }}
+                type="button"
+              >
+                Copy
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() =>
+                  window.open(explorerAddressUrl(savedOrgPda), "_blank")
+                }
+                type="button"
+              >
+                Explorer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {shareUrl ? (
-        <div className="card-social p-6 fade-in">
+        <div className="card-social p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="pill">📣 Share this check-in</div>
               <div className="mt-3 text-sm font-semibold">
-                Your claim link is ready
+                Your post is ready to go live
               </div>
               <div className="mt-1 text-sm opacity-80">
-                Send it in WhatsApp/Telegram, post it, or show the QR in a room.
+                Share the link, copy it, or show the QR in person.
               </div>
             </div>
 
@@ -712,129 +826,143 @@ export default function OrganizerPage() {
             />
           </div>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/60 dark:bg-white/5 p-3">
-            <div className="text-xs break-all opacity-80">{shareUrl}</div>
-          </div>
+          <details className="mt-4 rounded-2xl border border-white/10 bg-white/60 p-3 dark:bg-white/5">
+            <summary className="cursor-pointer text-xs font-semibold opacity-80">
+              Show full link
+            </summary>
+            <div className="mt-3 text-xs break-all opacity-80">{shareUrl}</div>
+          </details>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="card-social p-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="h2">1) Organizer profile</h2>
-            <div className="pill">👤</div>
+      <div className="card-social p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Compose your next event</div>
+            <div className="mt-1 text-sm opacity-80">
+              Think of this like writing a social post with a check-in attached.
+            </div>
           </div>
-          <p className="p mt-2">
-            Creates a PDA derived from your organizer wallet.
-          </p>
+          <div className="pill">📝</div>
+        </div>
 
-          <div className="mt-4">
-            <label className="label">Organizer name</label>
-            <input
-              className="input mt-2"
-              placeholder="e.g. Solana Tokyo Builders"
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-            />
-
-            <button
-              className="btn-primary mt-4 w-full shine"
-              onClick={onCreateOrganizer}
-              disabled={!canCreateOrganizer}
-              type="button"
-            >
-              {busyOrg ? "Creating…" : "Create Organizer"}
-            </button>
-
-            {!wallet.publicKey ? (
-              <div className="mt-3 text-xs opacity-70">
-                Connect your wallet to enable actions.
+        <div
+          className="mt-5 rounded-3xl overflow-hidden border border-white/10"
+          style={{
+            background: previewCover
+              ? `linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.55)), url(${previewCover}) center/cover`
+              : "linear-gradient(135deg, rgba(47,107,255,0.35), rgba(124,92,255,0.35))",
+          }}
+        >
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-2xl bg-white/70 dark:bg-white/10 border border-white/10 flex items-center justify-center">
+                  <span className="text-xl">{eventEmoji || "🎓"}</span>
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-white">
+                    {eventName.trim() ? eventName.trim() : "Your event title…"}
+                  </div>
+                  <div className="text-xs text-white/80">
+                    {mounted ? previewTime : "\u00A0"}
+                  </div>
+                </div>
               </div>
-            ) : null}
+
+              <div className="pill text-white bg-white/10 border-white/10">
+                🔒 On-chain
+              </div>
+            </div>
+
+            <div className="mt-4 text-sm text-white/90">
+              Share this post link and attendees can tap straight into check-in.
+            </div>
           </div>
         </div>
 
-        <div className="card-social p-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="h2">2) Create event post</h2>
-            <div className="pill">📝</div>
-          </div>
-          <p className="p mt-2">
-            Looks like a post, shares like a story, checks in on-chain.
-          </p>
-
-          <div
-            className="mt-4 rounded-3xl overflow-hidden border border-white/10"
-            style={{
-              background: previewCover
-                ? `linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.55)), url(${previewCover}) center/cover`
-                : "linear-gradient(135deg, rgba(47,107,255,0.35), rgba(124,92,255,0.35))",
-            }}
-          >
-            <div className="p-5 sm:p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-10 w-10 rounded-2xl bg-white/70 dark:bg-white/10 border border-white/10 flex items-center justify-center">
-                    <span className="text-xl">{eventEmoji || "🎓"}</span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">
-                      {eventName.trim() ? eventName.trim() : "Your event title…"}
-                    </div>
-                    <div className="text-xs text-white/80">
-                      {mounted ? previewTime : "\u00A0"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pill text-white bg-white/10 border-white/10">
-                  🔒 On-chain
-                </div>
-              </div>
-
-              <div className="mt-4 text-sm text-white/90">
-                Share this post link — attendees tap and check in.
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="label">Event title</label>
-                <input
-                  className="input mt-2"
-                  placeholder="e.g. Veyra 2026 Seminar"
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="label">Emoji</label>
-                <input
-                  className="input mt-2"
-                  placeholder="🎓"
-                  value={eventEmoji}
-                  onChange={(e) => setEventEmoji(e.target.value)}
-                />
-              </div>
-            </div>
-
+        <div className="mt-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="label">Cover image URL (optional)</label>
+              <label className="label">Event title</label>
               <input
                 className="input mt-2"
-                placeholder="https://... (banner image)"
-                value={eventCover}
-                onChange={(e) => setEventCover(e.target.value)}
+                placeholder="e.g. Veyra 2026 Seminar"
+                value={eventName}
+                onChange={(e) => setEventName(e.target.value)}
               />
-              <div className="mt-2 text-xs opacity-70">
-                Optional. If blank, we use a premium gradient.
-              </div>
             </div>
 
             <div>
+              <label className="label">Emoji</label>
+              <input
+                className="input mt-2"
+                placeholder="🎓"
+                value={eventEmoji}
+                onChange={(e) => setEventEmoji(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Cover image URL (optional)</label>
+            <input
+              className="input mt-2"
+              placeholder="https://... (banner image)"
+              value={eventCover}
+              onChange={(e) => setEventCover(e.target.value)}
+            />
+            <div className="mt-2 text-xs opacity-70">
+              Optional. If blank, we use a premium gradient.
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Claim code</label>
+            <input
+              className="input mt-2"
+              placeholder="Auto-generated (editable)"
+              value={claimCode}
+              onChange={(e) => setClaimCode(e.target.value)}
+            />
+            <div className="mt-2 text-xs opacity-70">
+              Attendees don’t type this manually when they use your link or QR.
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="label">Start (local time)</label>
+              <input
+                className="input mt-2 w-full min-w-0 appearance-none"
+                type="datetime-local"
+                value={startLocal}
+                onChange={(e) => setStartLocal(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">End (local time)</label>
+              <input
+                className="input mt-2 w-full min-w-0 appearance-none"
+                type="datetime-local"
+                value={endLocal}
+                onChange={(e) => setEndLocal(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {toUnixSeconds(endLocal) <= toUnixSeconds(startLocal) ? (
+            <div className="text-xs text-rose-500">
+              End time must be after start time.
+            </div>
+          ) : null}
+
+          <details className="rounded-3xl border border-white/10 bg-white/50 p-4 dark:bg-white/5">
+            <summary className="cursor-pointer text-sm font-semibold">
+              Advanced post details
+            </summary>
+
+            <div className="mt-4">
               <label className="label">
                 Event metadata URI (optional, on-chain)
               </label>
@@ -845,79 +973,25 @@ export default function OrganizerPage() {
                 onChange={(e) => setEventUri(e.target.value)}
               />
               <div className="mt-2 text-xs opacity-70">
-                Optional public JSON URL (IPFS/Arweave/GitHub raw). Safe to leave
-                blank.
+                Optional public JSON URL (IPFS/Arweave/GitHub raw). Safe to leave blank.
               </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="label">Start (local time)</label>
-                <input
-                  className="input mt-2"
-                  type="datetime-local"
-                  value={startLocal}
-                  onChange={(e) => setStartLocal(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="label">End (local time)</label>
-                <input
-                  className="input mt-2"
-                  type="datetime-local"
-                  value={endLocal}
-                  onChange={(e) => setEndLocal(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="label">Claim code (QR token)</label>
-              <input
-                className="input mt-2"
-                placeholder="Auto-generated (editable)"
-                value={claimCode}
-                onChange={(e) => setClaimCode(e.target.value)}
-              />
-              <div className="mt-2 text-xs opacity-70">
-                Attendees don’t type this — they open the link/QR.
-              </div>
-            </div>
-
-            <button
-              className="btn-primary w-full shine"
-              onClick={onCreateEvent}
-              disabled={!canCreateEvent}
-              type="button"
-            >
-              {busyEvent ? "Posting…" : "✨ Post event + Generate link"}
-            </button>
-
-            {!wallet.publicKey ? (
-              <div className="mt-2 text-xs opacity-70">
-                Connect wallet to post an event.
-              </div>
-            ) : null}
-
-            {toUnixSeconds(endLocal) <= toUnixSeconds(startLocal) ? (
-              <div className="mt-2 text-xs text-rose-500">
-                End time must be after start time.
-              </div>
-            ) : null}
-          </div>
+          </details>
         </div>
       </div>
 
-      <div className="card-social p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="h2">Recent event posts</h2>
-            <p className="p mt-2">
-              Tap one → share row + QR. This is the organizer’s “posting feed”.
-            </p>
+      <details className="card-social p-6" open={events.length > 0}>
+        <summary className="cursor-pointer">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="h2">Recent event posts</h2>
+              <p className="p mt-2">
+                Your posting feed. Reopen any event and share it again instantly.
+              </p>
+            </div>
+            <div className="pill">📌 {events.length}</div>
           </div>
-          <div className="pill">📌</div>
-        </div>
+        </summary>
 
         {events.length === 0 ? (
           <div className="mt-4 text-sm opacity-70">No events created yet.</div>
@@ -949,21 +1023,11 @@ export default function OrganizerPage() {
                           {emoji} {ev.name}
                         </div>
                         <div className="mt-1 text-xs opacity-80">
-                          Event PDA:{" "}
-                          <span className="font-mono">{shortPk(ev.eventPda)}</span>
+                          Code: <span className="font-mono">{ev.claimCode}</span>
                         </div>
-                        <div className="mt-2 text-xs opacity-80">
-                          Code:{" "}
-                          <span className="font-mono">{ev.claimCode}</span>
+                        <div className="mt-2 text-xs opacity-70">
+                          Event {shortPk(ev.eventPda)}
                         </div>
-                        {ev.actionTypePda ? (
-                          <div className="mt-2 text-xs opacity-80">
-                            Action:{" "}
-                            <span className="font-mono">
-                              {shortPk(ev.actionTypePda)}
-                            </span>
-                          </div>
-                        ) : null}
                       </div>
 
                       <button
@@ -1020,42 +1084,20 @@ export default function OrganizerPage() {
                         🚀 Share
                       </button>
                     </div>
-
-                    {wallet.publicKey ? (
-                      <div className="mt-4">
-                        <ShareRow
-                          title={`Check in: ${ev.name}`}
-                          text={`${emoji} ${ev.name} — tap to check in`}
-                          url={url}
-                          onCopied={() =>
-                            push({
-                              type: "success",
-                              title: "Copied",
-                              description: "Link copied to clipboard.",
-                            })
-                          }
-                        />
-                      </div>
-                    ) : (
-                      <div className="mt-4 text-xs opacity-70">
-                        Connect wallet to generate a share link.
-                      </div>
-                    )}
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-      </div>
+      </details>
 
       <div className="card-social p-6 opacity-90">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="h2">Next: Action posts (PRA)</h2>
             <p className="p mt-2">
-              We’ll wire create_action_type and make it feel like posting a story
-              with evidence + location.
+              Real-world action proofs will feel like posting a story with evidence and place.
             </p>
           </div>
           <div className="pill">🧩</div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { BN } from "@coral-xyz/anchor";
 import {
@@ -76,17 +76,32 @@ function getStatusLabel(status: unknown): StoredClaimStatus {
   return "unknown";
 }
 
-function statusPill(status?: StoredClaimStatus) {
+function statusText(status?: StoredClaimStatus) {
   switch (status) {
     case "approved":
-      return "Verified ✅";
+      return "Verified";
     case "pending":
-      return "Pending review";
+      return "Pending";
     case "rejected":
       return "Rejected";
     default:
       return "Unknown";
   }
+}
+
+function StatusChip({
+  icon,
+  text,
+}: {
+  icon: string;
+  text: string;
+}) {
+  return (
+    <div className="pill">
+      <span>{icon}</span>
+      <span>{text}</span>
+    </div>
+  );
 }
 
 export default function ParticipantPage() {
@@ -114,6 +129,12 @@ export default function ParticipantPage() {
   const [claims, setClaims] = useState<StoredClaim[]>([]);
   const [celebrate, setCelebrate] = useState(false);
 
+  const claimsRef = useRef<StoredClaim[]>([]);
+
+  useEffect(() => {
+    claimsRef.current = claims;
+  }, [claims]);
+
   const isLinkPrefilled = useMemo(() => {
     return !!sp.get("oa") || !!sp.get("e") || !!sp.get("c");
   }, [sp]);
@@ -124,7 +145,6 @@ export default function ParticipantPage() {
 
   useEffect(() => {
     if (!mounted) return;
-
     if (!occurredLocal) setOccurredLocal(nowLocalInput());
     if (!previewTime) setPreviewTime(new Date().toLocaleString());
     if (!currentUrl) setCurrentUrl(window.location.href);
@@ -152,7 +172,9 @@ export default function ParticipantPage() {
     const cl = window.localStorage.getItem(LS_CLAIMS);
     if (cl) {
       try {
-        setClaims(JSON.parse(cl));
+        const parsed = JSON.parse(cl) as StoredClaim[];
+        setClaims(parsed);
+        claimsRef.current = parsed;
       } catch {
         // ignore
       }
@@ -161,80 +183,85 @@ export default function ParticipantPage() {
   }, []);
 
   function saveClaims(next: StoredClaim[]) {
+    claimsRef.current = next;
     setClaims(next);
     window.localStorage.setItem(LS_CLAIMS, JSON.stringify(next));
   }
 
-  const refreshClaimStatuses = useCallback(async () => {
-    if (!wallet.publicKey || claims.length === 0) return;
+  const refreshClaimStatuses = useCallback(
+    async (sourceClaims?: StoredClaim[]) => {
+      const targetClaims = sourceClaims ?? claimsRef.current;
+      if (!wallet.publicKey || targetClaims.length === 0) return;
 
-    setRefreshingClaims(true);
-    try {
-      const program = getProgram(connection, wallet);
+      setRefreshingClaims(true);
+      try {
+        const program = getProgram(connection, wallet);
 
-      const nextClaims = await Promise.all(
-        claims.map(async (stored) => {
-          try {
-            const claimPk = new PublicKey(stored.claimPda);
-            const claimAccount = await (program.account as any).claim.fetch(claimPk);
+        const nextClaims = await Promise.all(
+          targetClaims.map(async (stored) => {
+            try {
+              const claimPk = new PublicKey(stored.claimPda);
+              const claimAccount = await (program.account as any).claim.fetch(claimPk);
 
-            const organizerPk = claimAccount.organizer as PublicKey;
-            const claimantPk = claimAccount.claimant as PublicKey;
+              const organizerPk = claimAccount.organizer as PublicKey;
+              const claimantPk = claimAccount.claimant as PublicKey;
 
-            const [proofPda] = PublicKey.findProgramAddressSync(
-              [
-                Buffer.from("proof"),
-                organizerPk.toBuffer(),
-                claimantPk.toBuffer(),
-                claimPk.toBuffer(),
-              ],
-              program.programId
-            );
+              const [proofPda] = PublicKey.findProgramAddressSync(
+                [
+                  Buffer.from("proof"),
+                  organizerPk.toBuffer(),
+                  claimantPk.toBuffer(),
+                  claimPk.toBuffer(),
+                ],
+                program.programId
+              );
 
-            const proofInfo = await connection.getAccountInfo(proofPda);
+              const proofInfo = await connection.getAccountInfo(proofPda);
 
-            return {
-              ...stored,
-              organizerAuthority:
-                stored.organizerAuthority ||
-                claimAccount.organizerAuthority?.toBase58?.() ||
-                stored.organizerAuthority,
-              eventPda:
-                stored.eventPda ||
-                (claimAccount.event?.toBase58?.() &&
-                claimAccount.event.toBase58() !== EMPTY_PK
-                  ? claimAccount.event.toBase58()
-                  : undefined),
-              actionTypePda:
-                stored.actionTypePda ||
-                (claimAccount.actionType?.toBase58?.() &&
-                claimAccount.actionType.toBase58() !== EMPTY_PK
-                  ? claimAccount.actionType.toBase58()
-                  : undefined),
-              submittedAt:
-                typeof claimAccount.submittedAt?.toNumber === "function"
-                  ? claimAccount.submittedAt.toNumber()
-                  : stored.submittedAt,
-              status: proofInfo
-                ? "approved"
-                : getStatusLabel(claimAccount.status),
-              proofPda: proofInfo ? proofPda.toBase58() : stored.proofPda,
-            } satisfies StoredClaim;
-          } catch {
-            return stored;
-          }
-        })
-      );
+              return {
+                ...stored,
+                organizerAuthority:
+                  stored.organizerAuthority ||
+                  claimAccount.organizerAuthority?.toBase58?.() ||
+                  stored.organizerAuthority,
+                eventPda:
+                  stored.eventPda ||
+                  (claimAccount.event?.toBase58?.() &&
+                  claimAccount.event.toBase58() !== EMPTY_PK
+                    ? claimAccount.event.toBase58()
+                    : undefined),
+                actionTypePda:
+                  stored.actionTypePda ||
+                  (claimAccount.actionType?.toBase58?.() &&
+                  claimAccount.actionType.toBase58() !== EMPTY_PK
+                    ? claimAccount.actionType.toBase58()
+                    : undefined),
+                submittedAt:
+                  typeof claimAccount.submittedAt?.toNumber === "function"
+                    ? claimAccount.submittedAt.toNumber()
+                    : stored.submittedAt,
+                status: proofInfo ? "approved" : getStatusLabel(claimAccount.status),
+                proofPda: proofInfo ? proofPda.toBase58() : stored.proofPda,
+              } satisfies StoredClaim;
+            } catch {
+              return stored;
+            }
+          })
+        );
 
-      saveClaims(nextClaims);
-    } finally {
-      setRefreshingClaims(false);
-    }
-  }, [claims, connection, wallet]);
+        saveClaims(nextClaims);
+      } finally {
+        setRefreshingClaims(false);
+      }
+    },
+    [connection, wallet]
+  );
 
   useEffect(() => {
-    void refreshClaimStatuses();
-  }, [refreshClaimStatuses]);
+    if (!wallet.publicKey) return;
+    if (claimsRef.current.length === 0) return;
+    void refreshClaimStatuses(claimsRef.current);
+  }, [wallet.publicKey, refreshClaimStatuses]);
 
   const canSubmit = useMemo(() => {
     if (!wallet.publicKey) return false;
@@ -336,7 +363,8 @@ export default function ParticipantPage() {
         submittedAt: Math.floor(Date.now() / 1000),
       };
 
-      saveClaims([stored, ...claims].slice(0, 12));
+      const nextClaims = [stored, ...claimsRef.current].slice(0, 12);
+      saveClaims(nextClaims);
 
       setCelebrate(true);
       setTimeout(() => setCelebrate(false), 1200);
@@ -383,338 +411,65 @@ export default function ParticipantPage() {
 
   const storyTitle = title?.trim() || "Check-in";
   const storyEmoji = emoji?.trim() || "🚀";
-
   const heroBg = cover?.trim()
     ? { backgroundImage: `url(${cover})` }
     : undefined;
 
   const verifiedClaims = claims.filter((c) => c.status === "approved");
   const pendingClaims = claims.filter((c) => c.status === "pending");
+  const latestVerified = verifiedClaims[0];
+  const latestClaim = claims[0];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <Celebration fire={celebrate} />
 
-      <div className="card-social p-6 sm:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="pill">
-              <span>Participant</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.7)]" />
-              <span className="opacity-80">Check-in</span>
-            </div>
+      <div className="card-social overflow-hidden">
+        <div
+          className="p-6 sm:p-8"
+          style={heroBg}
+        >
+          <div className={cover ? "rounded-[28px] bg-black/40 p-6 sm:p-7" : ""}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="pill">
+                  <span>Participant</span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.7)]" />
+                  <span className="opacity-80">Check-in</span>
+                </div>
 
-            <h1 className="h1 mt-4">
-              {storyEmoji} {storyTitle}
-            </h1>
-            <p className="p mt-2">
-              {isLinkPrefilled
-                ? "This page is pre-filled from the organizer’s link. Tap check-in — it’s like posting a story."
-                : "Paste a link from an organizer. Soon: scan QR as the default."}
-            </p>
-          </div>
+                <h1 className="h1 mt-4">
+                  {storyEmoji} {storyTitle}
+                </h1>
+                <p className="p mt-3 max-w-2xl">
+                  {isLinkPrefilled
+                    ? "Open the event, tap once, and your attendance gets posted like a story."
+                    : "Open an organizer link or QR to check in and unlock a shareable attendance badge."}
+                </p>
 
-          <div className="hidden sm:flex flex-col items-end gap-2">
-            {wallet.publicKey ? (
-              <div className="pill">
-                <span className="opacity-80">Connected</span>
-                <span className="font-mono">
-                  {shortPk(wallet.publicKey.toBase58())}
-                </span>
-              </div>
-            ) : (
-              <div className="pill opacity-80">Connect wallet to post</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {verifiedClaims.length > 0 ? (
-        <div className="card-social p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="pill">🏅 Attendance badge</div>
-              <div className="mt-3 text-sm font-semibold">
-                You’ve got a verified attendance proof
-              </div>
-              <div className="mt-1 text-sm opacity-80">
-                Share it like a social card — not a dashboard screenshot.
-              </div>
-            </div>
-
-            <button
-              className="btn-secondary"
-              onClick={() => void refreshClaimStatuses()}
-              disabled={refreshingClaims}
-              type="button"
-            >
-              {refreshingClaims ? "Refreshing…" : "Refresh status"}
-            </button>
-          </div>
-
-          {verifiedClaims.slice(0, 1).map((c) => {
-            const shareUrl = c.proofPda
-              ? explorerAddressUrl(c.proofPda)
-              : c.claimPda
-                ? explorerAddressUrl(c.claimPda)
-                : currentUrl;
-
-            return (
-              <div
-                key={c.claimPda}
-                className="mt-5 rounded-3xl overflow-hidden border border-white/10"
-                style={
-                  c.cover?.trim()
-                    ? {
-                        backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.20), rgba(0,0,0,0.55)), url(${c.cover})`,
-                        backgroundSize: "cover",
-                        backgroundPosition: "center",
-                      }
-                    : {
-                        background:
-                          "linear-gradient(135deg, rgba(34,197,94,0.22), rgba(59,130,246,0.22), rgba(168,85,247,0.22))",
-                      }
-                }
-              >
-                <div className="bg-black/20 p-5 sm:p-6">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="pill bg-white/15 text-white border-white/10">
-                      <span>✅</span>
-                      <span>Verified attendance</span>
-                    </div>
-                    <div className="pill bg-white/15 text-white border-white/10">
-                      <span>🏅</span>
-                      <span>Badge unlocked</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex items-start gap-3">
-                    <div className="h-14 w-14 rounded-3xl bg-white/20 border border-white/20 flex items-center justify-center text-2xl">
-                      {c.emoji || "🎟️"}
-                    </div>
-                    <div>
-                      <div className="text-2xl sm:text-3xl font-semibold text-white">
-                        {c.title || "Attendance badge"}
-                      </div>
-                      <div className="mt-1 text-sm text-white/80">
-                        Attended on {formatDateTime(c.occurredTs)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 rounded-3xl border border-white/10 bg-white/10 p-4 text-white">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/70">
-                      Open Rails
-                    </div>
-                    <div className="mt-2 text-lg font-semibold">
-                      Attendance Badge
-                    </div>
-                    <div className="mt-2 text-sm text-white/80">
-                      Verified proof recorded on-chain. This is your social proof
-                      card for showing up.
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-2xl border border-white/10 bg-white/10 p-3">
-                        <div className="text-white/60 text-xs">Status</div>
-                        <div className="mt-1 font-semibold">Verified ✅</div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/10 p-3">
-                        <div className="text-white/60 text-xs">Wallet</div>
-                        <div className="mt-1 font-semibold">
-                          {wallet.publicKey
-                            ? shortPk(wallet.publicKey.toBase58())
-                            : "Participant"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5">
-                    <ShareRow
-                      title={`I earned an Open Rails attendance badge for ${c.title || "this event"} 🏅`}
-                      text={`Verified attendance: ${c.emoji || "🎟️"} ${c.title || "Event"} • recorded on-chain`}
-                      url={shareUrl}
-                      onCopied={() =>
-                        push({
-                          type: "success",
-                          title: "Copied",
-                          description: "Badge link copied to clipboard.",
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {c.proofPda ? (
-                      <button
-                        className="btn-secondary"
-                        onClick={() =>
-                          window.open(explorerAddressUrl(c.proofPda!), "_blank")
-                        }
-                        type="button"
-                      >
-                        View badge proof
-                      </button>
-                    ) : null}
-                    <button
-                      className="btn-secondary"
-                      onClick={() =>
-                        window.open(explorerAddressUrl(c.claimPda), "_blank")
-                      }
-                      type="button"
-                    >
-                      View claim
-                    </button>
-                  </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <StatusChip icon="⏳" text={`${pendingClaims.length} pending`} />
+                  <StatusChip icon="✅" text={`${verifiedClaims.length} verified`} />
                 </div>
               </div>
-            );
-          })}
-        </div>
-      ) : null}
 
-      <div className="card-social p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-          <div className="lg:col-span-3">
-            <div
-              className="rounded-3xl border border-white/10 overflow-hidden mb-5"
-              style={heroBg}
-            >
-              <div
-                className={`p-5 sm:p-6 ${
-                  cover ? "bg-black/45" : "bg-white/55 dark:bg-white/5"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-10 w-10 rounded-2xl bg-white/70 dark:bg-white/10 border border-white/10 flex items-center justify-center">
-                      <span className="text-xl">{storyEmoji}</span>
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-[color:var(--text-primary)]">
-                        {storyTitle}
-                      </div>
-                      <div className="text-xs opacity-80">
-                        {mounted ? previewTime : "\u00A0"}
-                      </div>
-                    </div>
-                  </div>
-
+              <div className="hidden sm:flex flex-col items-end gap-2">
+                {wallet.publicKey ? (
                   <div className="pill">
-                    <span>🔒</span>
-                    <span className="opacity-80">On-chain</span>
+                    <span className="opacity-80">Connected</span>
+                    <span className="font-mono">
+                      {shortPk(wallet.publicKey.toBase58())}
+                    </span>
                   </div>
-                </div>
-
-                <div className="mt-4 text-sm opacity-90">
-                  Tap <span className="font-semibold">Check in</span> to post your
-                  attendance proof.
-                </div>
+                ) : (
+                  <div className="pill opacity-80">Connect wallet to post</div>
+                )}
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Story title</label>
-                  <input
-                    className="input mt-2"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Solana Builders Meetup"
-                  />
-                </div>
-                <div>
-                  <label className="label">Emoji</label>
-                  <input
-                    className="input mt-2"
-                    value={emoji}
-                    onChange={(e) => setEmoji(e.target.value)}
-                    placeholder="🚀"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="label">Cover image URL (optional)</label>
-                <input
-                  className="input mt-2"
-                  value={cover || ""}
-                  onChange={(e) =>
-                    setCover(e.target.value.trim() ? e.target.value : undefined)
-                  }
-                  placeholder="https://… (banner image)"
-                />
-                <div className="mt-2 text-xs opacity-70">
-                  Optional. If you don’t have one, we’ll keep the premium
-                  gradient look.
-                </div>
-              </div>
-
-              <details className="rounded-3xl border border-white/10 bg-white/50 dark:bg-white/5 p-4">
-                <summary className="cursor-pointer text-sm font-semibold">
-                  Advanced event details
-                </summary>
-
-                <div className="mt-4 grid grid-cols-1 gap-3">
-                  <div>
-                    <label className="label">Organizer authority</label>
-                    <input
-                      className="input mt-2 font-mono"
-                      value={organizerAuthority}
-                      onChange={(e) => setOrganizerAuthority(e.target.value)}
-                      placeholder="Filled from link"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="label">Event PDA</label>
-                    <input
-                      className="input mt-2 font-mono"
-                      value={eventPdaStr}
-                      onChange={(e) => setEventPdaStr(e.target.value)}
-                      placeholder="Filled from link"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="label">Action Type PDA (optional)</label>
-                    <input
-                      className="input mt-2 font-mono"
-                      value={actionTypePdaStr}
-                      onChange={(e) => setActionTypePdaStr(e.target.value)}
-                      placeholder="Filled from link"
-                    />
-                  </div>
-                </div>
-              </details>
-
-              <div>
-                <label className="label">Event code</label>
-                <input
-                  className="input mt-2"
-                  value={claimCode}
-                  onChange={(e) => setClaimCode(e.target.value)}
-                  placeholder="From QR/link"
-                />
-              </div>
-
-              <div>
-                <label className="label">When did you attend?</label>
-                <input
-                  className="input mt-2"
-                  type="datetime-local"
-                  value={occurredLocal}
-                  onChange={(e) => setOccurredLocal(e.target.value)}
-                />
-                <div className="mt-2 text-xs opacity-70">
-                  Must be inside the event window (start → end).
-                </div>
-              </div>
-
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button
-                className="btn-primary w-full shine"
+                className="btn-primary shine w-full"
                 disabled={!canSubmit}
                 onClick={onSubmitClaim}
                 type="button"
@@ -722,200 +477,395 @@ export default function ParticipantPage() {
                 {busy ? "Checking in…" : "✅ Check in"}
               </button>
 
-              {!wallet.publicKey ? (
-                <div className="mt-2 text-xs opacity-70">
-                  Tap “Select Wallet” (top right) to connect, then check in.
-                </div>
-              ) : null}
-
-              <div className="mt-2 text-xs opacity-70">
-                Your check-in first appears as pending review. Once approved, it
-                becomes a verified attendance badge you can share.
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-2">
-            <div className="rounded-3xl border border-white/10 bg-white/60 dark:bg-white/5 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold">What happens next?</div>
-                <button
-                  className="btn-secondary px-3 py-2"
-                  onClick={() => void refreshClaimStatuses()}
-                  disabled={refreshingClaims}
-                  type="button"
-                >
-                  {refreshingClaims ? "Refreshing…" : "Refresh"}
-                </button>
-              </div>
-
-              <div className="mt-2 text-sm opacity-80 leading-relaxed">
-                Your check-in is recorded as a pending proof. The
-                organizer/validator approves it, then it becomes a verified badge
-                you can proudly share.
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/60 dark:bg-white/5 p-4">
-                <div className="text-xs opacity-70">Live status</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <div className="pill">
-                    <span>⏳</span>
-                    <span>{pendingClaims.length} pending</span>
-                  </div>
-                  <div className="pill">
-                    <span>✅</span>
-                    <span>{verifiedClaims.length} verified</span>
-                  </div>
-                </div>
-              </div>
+              <button
+                className="btn-secondary w-full"
+                onClick={() => void refreshClaimStatuses(claimsRef.current)}
+                disabled={refreshingClaims || claims.length === 0}
+                type="button"
+              >
+                {refreshingClaims ? "Updating…" : "Refresh status"}
+              </button>
             </div>
 
-            <div className="mt-4 rounded-3xl border border-white/10 bg-white/60 dark:bg-white/5 p-5">
-              <div className="text-sm font-semibold">Your check-ins</div>
-              <div className="mt-2 text-sm opacity-80">
-                Saved on this device. Feels like a profile feed, not a dashboard.
-              </div>
-
-              {claims.length === 0 ? (
-                <div className="mt-3 text-sm opacity-70">No check-ins yet.</div>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  {claims.slice(0, 6).map((c) => {
-                    const shareUrl = c.proofPda
-                      ? explorerAddressUrl(c.proofPda)
-                      : explorerAddressUrl(c.claimPda);
-
-                    const badgeTitle =
-                      c.status === "approved"
-                        ? "Attendance badge unlocked"
-                        : c.status === "pending"
-                          ? "Pending review"
-                          : "Check-in recorded";
-
-                    return (
-                      <div
-                        key={c.claimPda}
-                        className="rounded-2xl border border-white/10 bg-white/65 dark:bg-white/5 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-semibold">
-                              {(c.emoji || "✅")} {(c.title || "Check-in")}
-                            </div>
-                            <div className="mt-1 text-xs opacity-75">
-                              {badgeTitle} • {statusPill(c.status)}
-                            </div>
-                            <div className="mt-2 text-xs opacity-75">
-                              {formatDateTime(c.occurredTs)}
-                            </div>
-                          </div>
-
-                          <div className="pill">
-                            {c.status === "approved" ? "🏅 Verified" : "⏳ Pending"}
-                          </div>
-                        </div>
-
-                        <div className="mt-3 rounded-2xl border border-white/10 bg-white/50 dark:bg-white/5 p-3">
-                          <div className="text-xs uppercase tracking-[0.16em] opacity-65">
-                            Open Rails
-                          </div>
-                          <div className="mt-1 text-sm font-semibold">
-                            {c.status === "approved"
-                              ? "Attendance Badge"
-                              : "Pending Attendance Proof"}
-                          </div>
-                          <div className="mt-1 text-sm opacity-80">
-                            {c.status === "approved"
-                              ? "Verified and ready to share."
-                              : "Waiting for organizer approval."}
-                          </div>
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {c.status === "approved" ? (
-                            <button
-                              className="btn-secondary"
-                              onClick={() =>
-                                window.open(
-                                  explorerAddressUrl(c.proofPda || c.claimPda),
-                                  "_blank"
-                                )
-                              }
-                              type="button"
-                            >
-                              View badge
-                            </button>
-                          ) : (
-                            <button
-                              className="btn-secondary"
-                              onClick={() =>
-                                window.open(explorerAddressUrl(c.claimPda), "_blank")
-                              }
-                              type="button"
-                            >
-                              View claim
-                            </button>
-                          )}
-
-                          {c.tx ? (
-                            <button
-                              className="btn-secondary"
-                              onClick={() => window.open(explorerTxUrl(c.tx!), "_blank")}
-                              type="button"
-                            >
-                              Tx
-                            </button>
-                          ) : null}
-                        </div>
-
-                        <div className="mt-3">
-                          <ShareRow
-                            title={
-                              c.status === "approved"
-                                ? `I earned an attendance badge for ${c.title || "this event"} 🏅`
-                                : `I checked in to ${c.title || "this event"}`
-                            }
-                            text={
-                              c.status === "approved"
-                                ? `${c.emoji || "🎟️"} Verified attendance badge unlocked`
-                                : `${c.emoji || "🎟️"} Check-in submitted and awaiting approval`
-                            }
-                            url={shareUrl}
-                            onCopied={() =>
-                              push({
-                                type: "success",
-                                title: "Copied",
-                                description:
-                                  c.status === "approved"
-                                    ? "Badge link copied to clipboard."
-                                    : "Claim link copied to clipboard.",
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 rounded-3xl border border-white/10 bg-white/50 dark:bg-white/5 p-5 opacity-90">
-              <div className="text-sm font-semibold">Next: PRA = “Action posts”</div>
-              <div className="mt-2 text-sm opacity-80">
-                Real-world actions will feel like posting a story with an evidence
-                hash + location cell.
-              </div>
+            <div className="mt-3 text-xs opacity-75">
+              Your check-in first appears as pending. Once approved, it becomes a verified attendance badge you can share.
             </div>
           </div>
         </div>
       </div>
 
-      {isLinkPrefilled ? (
+      {latestVerified ? (
         <div className="card-social p-6">
-          <div className="text-sm font-semibold">Share this check-in link</div>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="pill">🏅 Attendance badge</div>
+              <div className="mt-3 text-sm font-semibold">
+                Your latest verified badge
+              </div>
+              <div className="mt-1 text-sm opacity-80">
+                Designed to feel like a social proof card, not a blockchain receipt.
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="mt-5 rounded-3xl overflow-hidden border border-white/10"
+            style={
+              latestVerified.cover?.trim()
+                ? {
+                    backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.20), rgba(0,0,0,0.55)), url(${latestVerified.cover})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }
+                : {
+                    background:
+                      "linear-gradient(135deg, rgba(34,197,94,0.22), rgba(59,130,246,0.22), rgba(168,85,247,0.22))",
+                  }
+            }
+          >
+            <div className="bg-black/20 p-5 sm:p-6 text-white">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="pill bg-white/15 text-white border-white/10">
+                  <span>✅</span>
+                  <span>Verified attendance</span>
+                </div>
+                <div className="pill bg-white/15 text-white border-white/10">
+                  <span>🏅</span>
+                  <span>Badge unlocked</span>
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-start gap-3">
+                <div className="h-16 w-16 rounded-3xl bg-white/20 border border-white/20 flex items-center justify-center text-3xl">
+                  {latestVerified.emoji || "🎟️"}
+                </div>
+                <div>
+                  <div className="text-2xl sm:text-3xl font-semibold">
+                    {latestVerified.title || "Attendance badge"}
+                  </div>
+                  <div className="mt-1 text-sm text-white/80">
+                    Attended on {formatDateTime(latestVerified.occurredTs)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-3xl border border-white/10 bg-white/10 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/70">
+                  Open Rails
+                </div>
+                <div className="mt-2 text-lg font-semibold">Attendance Badge</div>
+                <div className="mt-2 text-sm text-white/80">
+                  Verified proof recorded on-chain. A shareable proof that you showed up.
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <ShareRow
+                  title={`I earned an Open Rails attendance badge for ${latestVerified.title || "this event"} 🏅`}
+                  text={`Verified attendance: ${latestVerified.emoji || "🎟️"} ${latestVerified.title || "Event"} • recorded on-chain`}
+                  url={
+                    latestVerified.proofPda
+                      ? explorerAddressUrl(latestVerified.proofPda)
+                      : explorerAddressUrl(latestVerified.claimPda)
+                  }
+                  onCopied={() =>
+                    push({
+                      type: "success",
+                      title: "Copied",
+                      description: "Badge link copied to clipboard.",
+                    })
+                  }
+                />
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {latestVerified.proofPda ? (
+                  <button
+                    className="btn-secondary"
+                    onClick={() =>
+                      window.open(explorerAddressUrl(latestVerified.proofPda!), "_blank")
+                    }
+                    type="button"
+                  >
+                    View badge
+                  </button>
+                ) : null}
+                <button
+                  className="btn-secondary"
+                  onClick={() =>
+                    window.open(explorerAddressUrl(latestVerified.claimPda), "_blank")
+                  }
+                  type="button"
+                >
+                  View claim
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="card-social p-6">
+        <div className="space-y-4">
+          <div
+            className="rounded-3xl border border-white/10 overflow-hidden"
+            style={heroBg}
+          >
+            <div
+              className={`p-5 sm:p-6 ${
+                cover ? "bg-black/45 text-white" : "bg-white/55 dark:bg-white/5"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-3xl bg-white/70 dark:bg-white/10 border border-white/10 flex items-center justify-center">
+                    <span className="text-2xl">{storyEmoji}</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold">{storyTitle}</div>
+                    <div className="text-xs opacity-80">
+                      {mounted ? previewTime : "\u00A0"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pill">
+                  <span>🔒</span>
+                  <span className="opacity-80">On-chain</span>
+                </div>
+              </div>
+
+              <div className="mt-4 text-sm opacity-90">
+                One tap check-in. Then wait for approval to unlock your attendance badge.
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label">Story title</label>
+              <input
+                className="input mt-2"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Solana Builders Meetup"
+              />
+            </div>
+            <div>
+              <label className="label">Emoji</label>
+              <input
+                className="input mt-2"
+                value={emoji}
+                onChange={(e) => setEmoji(e.target.value)}
+                placeholder="🚀"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Cover image URL (optional)</label>
+            <input
+              className="input mt-2"
+              value={cover || ""}
+              onChange={(e) =>
+                setCover(e.target.value.trim() ? e.target.value : undefined)
+              }
+              placeholder="https://… (banner image)"
+            />
+            <div className="mt-2 text-xs opacity-70">
+              Optional. If blank, the app keeps the premium gradient look.
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Event code</label>
+            <input
+              className="input mt-2"
+              value={claimCode}
+              onChange={(e) => setClaimCode(e.target.value)}
+              placeholder="From QR/link"
+            />
+          </div>
+
+          <div>
+            <label className="label">When did you attend?</label>
+            <input
+              className="input mt-2 w-full min-w-0 appearance-none"
+              type="datetime-local"
+              value={occurredLocal}
+              onChange={(e) => setOccurredLocal(e.target.value)}
+            />
+            <div className="mt-2 text-xs opacity-70">
+              Must be inside the event window.
+            </div>
+          </div>
+
+          <details className="rounded-3xl border border-white/10 bg-white/50 dark:bg-white/5 p-4">
+            <summary className="cursor-pointer text-sm font-semibold">
+              Advanced event details
+            </summary>
+
+            <div className="mt-4 grid grid-cols-1 gap-3">
+              <div>
+                <label className="label">Organizer authority</label>
+                <input
+                  className="input mt-2 font-mono"
+                  value={organizerAuthority}
+                  onChange={(e) => setOrganizerAuthority(e.target.value)}
+                  placeholder="Filled from link"
+                />
+              </div>
+
+              <div>
+                <label className="label">Event PDA</label>
+                <input
+                  className="input mt-2 font-mono"
+                  value={eventPdaStr}
+                  onChange={(e) => setEventPdaStr(e.target.value)}
+                  placeholder="Filled from link"
+                />
+              </div>
+
+              <div>
+                <label className="label">Action Type PDA (optional)</label>
+                <input
+                  className="input mt-2 font-mono"
+                  value={actionTypePdaStr}
+                  onChange={(e) => setActionTypePdaStr(e.target.value)}
+                  placeholder="Filled from link"
+                />
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <details className="card-social p-6">
+        <summary className="cursor-pointer">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">Your activity</div>
+              <div className="mt-1 text-sm opacity-80">
+                A lighter feed view of your check-ins and badges.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatusChip icon="⏳" text={`${pendingClaims.length}`} />
+              <StatusChip icon="✅" text={`${verifiedClaims.length}`} />
+            </div>
+          </div>
+        </summary>
+
+        {claims.length === 0 ? (
+          <div className="mt-4 text-sm opacity-70">No check-ins yet.</div>
+        ) : (
+          <div className="mt-5 space-y-3">
+            {claims.slice(0, 6).map((c) => {
+              const shareUrl = c.proofPda
+                ? explorerAddressUrl(c.proofPda)
+                : explorerAddressUrl(c.claimPda);
+
+              return (
+                <div
+                  key={c.claimPda}
+                  className="rounded-2xl border border-white/10 bg-white/65 dark:bg-white/5 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">
+                        {(c.emoji || "✅")} {(c.title || "Check-in")}
+                      </div>
+                      <div className="mt-1 text-xs opacity-75">
+                        {statusText(c.status)} • {formatDateTime(c.occurredTs)}
+                      </div>
+                    </div>
+
+                    <div className="pill">
+                      {c.status === "approved" ? "🏅 Verified" : "⏳ Pending"}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-white/50 dark:bg-white/5 p-3">
+                    <div className="text-xs uppercase tracking-[0.16em] opacity-65">
+                      Open Rails
+                    </div>
+                    <div className="mt-1 text-sm font-semibold">
+                      {c.status === "approved"
+                        ? "Attendance Badge"
+                        : "Pending Attendance Proof"}
+                    </div>
+                    <div className="mt-1 text-sm opacity-80">
+                      {c.status === "approved"
+                        ? "Verified and ready to share."
+                        : "Waiting for organizer approval."}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      className="btn-secondary"
+                      onClick={() =>
+                        window.open(
+                          explorerAddressUrl(c.proofPda || c.claimPda),
+                          "_blank"
+                        )
+                      }
+                      type="button"
+                    >
+                      {c.status === "approved" ? "View badge" : "View claim"}
+                    </button>
+
+                    {c.tx ? (
+                      <button
+                        className="btn-secondary"
+                        onClick={() => window.open(explorerTxUrl(c.tx!), "_blank")}
+                        type="button"
+                      >
+                        Tx
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3">
+                    <ShareRow
+                      title={
+                        c.status === "approved"
+                          ? `I earned an attendance badge for ${c.title || "this event"} 🏅`
+                          : `I checked in to ${c.title || "this event"}`
+                      }
+                      text={
+                        c.status === "approved"
+                          ? `${c.emoji || "🎟️"} Verified attendance badge unlocked`
+                          : `${c.emoji || "🎟️"} Check-in submitted and awaiting approval`
+                      }
+                      url={shareUrl}
+                      onCopied={() =>
+                        push({
+                          type: "success",
+                          title: "Copied",
+                          description:
+                            c.status === "approved"
+                              ? "Badge link copied to clipboard."
+                              : "Claim link copied to clipboard.",
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </details>
+
+      {isLinkPrefilled ? (
+        <details className="card-social p-6">
+          <summary className="cursor-pointer text-sm font-semibold">
+            Share this check-in link
+          </summary>
+
           <div className="mt-2 text-sm opacity-80">
-            Handy if a friend is beside you and needs the same event link.
+            Handy if someone beside you needs the same event link.
           </div>
 
           <div className="mt-4">
@@ -936,7 +886,7 @@ export default function ParticipantPage() {
               <div className="h-12 rounded-2xl border border-white/10 bg-white/40 dark:bg-white/5" />
             )}
           </div>
-        </div>
+        </details>
       ) : null}
     </div>
   );
